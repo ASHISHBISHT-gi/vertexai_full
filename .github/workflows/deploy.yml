@@ -1,0 +1,52 @@
+# Runs when you push a version tag:  git tag v1.0.0 && git push origin v1.0.0
+# 1) builds the three images and pushes them to GitHub Container Registry, tagged with the version AND the commit SHA
+#    (so a rollback is "deploy the previous tag", no rebuild: PRD 14.5)
+# 2) if the DEPLOY_* secrets exist, logs into your server over SSH and restarts the stack.
+name: Deploy
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { name: backend, context: backend }
+          - { name: ai-service, context: ai-service }
+          - { name: frontend, context: frontend }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.name }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/${{ matrix.name }}:${{ github.sha }}
+
+  deploy:
+    needs: images
+    runs-on: ubuntu-latest
+    env:
+      HAS_SERVER: ${{ secrets.DEPLOY_HOST != '' }}
+    steps:
+      - name: Restart the stack on the server
+        if: env.HAS_SERVER == 'true'
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+            git fetch --tags && git checkout ${{ github.ref_name }}
+            docker compose --profile app up -d --build
+            sleep 15 && curl -sf http://localhost:8080/healthz && echo "deployed ${{ github.ref_name }}"

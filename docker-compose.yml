@@ -1,0 +1,79 @@
+# Development (what you've been doing):   docker compose up -d            -> only Postgres starts
+# Whole platform in containers:           docker compose --profile app up -d --build   -> http://localhost:8080
+# The "app" profile reads secrets from a root .env file (copy .env.example).
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: lms_postgres
+    environment:
+      POSTGRES_USER: lms_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lms_password}
+      POSTGRES_DB: lms_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lms_user -d lms_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    profiles: ["app"]
+    build: ./backend
+    command: ["pnpm", "migrate"]
+    environment: &backend_env
+      DATABASE_URL: postgresql://lms_user:${POSTGRES_PASSWORD:-lms_password}@postgres:5432/lms_db
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in the root .env file}
+      CORS_ORIGIN: ${APP_URL:-http://localhost:8080}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      TRUST_PROXY: "1"
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Vertexon Learning <no-reply@example.com>}
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  backend:
+    profiles: ["app"]
+    build: ./backend
+    environment: *backend_env
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  ai-service:
+    profiles: ["app"]
+    build: ./ai-service
+    environment:
+      DATABASE_URL: postgresql://lms_user:${POSTGRES_PASSWORD:-lms_password}@postgres:5432/lms_db
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in the root .env file}
+      CORS_ORIGIN: ${APP_URL:-http://localhost:8080}
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fake}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  frontend:
+    profiles: ["app"]
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+      - ai-service
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  uploads:

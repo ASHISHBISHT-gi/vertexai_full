@@ -1,0 +1,84 @@
+@import "tailwindcss";
+@import "@fontsource-variable/bricolage-grotesque";
+
+/* Design tokens: pen ink + highlighter. Tailwind turns each --color-* into utilities
+   like bg-paper, text-ink, border-line. Change a value here and the whole app follows. */
+@theme {
+  --font-sans: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-paper: #f6f7fb;
+  --color-ink: #1c2340;
+  --color-muted: #5b6482;
+  --color-line: #dde1ee;
+  --color-pen: #1f3a93;
+  --color-pen-dark: #172c70;
+  --color-highlight: #ffd84a;
+  --color-danger: #b3261e;
+  --color-ok: #1e7f5c;
+}
+
+/* Dark mode: the same token names with night values, so every bg-paper / text-ink / border-line in the app flips at once.
+   `bg-white` is hard-coded in many components, so it is re-pointed at --color-surface below instead of editing each file.
+   Measured contrast (WCAG AA needs 4.5:1 for text): ink on paper 15.4, muted on surface 7.3, pen on surface 7.1, danger on surface 7.3, white on bg-pen 6.3. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-paper: #0f1424;
+  --color-surface: #171d33;
+  --color-ink: #e8ebf7;
+  --color-muted: #a3abc6;
+  --color-line: #2a3252;
+  --color-pen: #8ea5ff;
+  --color-pen-dark: #aebdff;
+  --color-danger: #ff8b80;
+  --color-ok: #5fd3a6;
+}
+:root:not([data-theme="dark"]) {
+  --color-surface: #ffffff;
+}
+[data-theme="dark"] .bg-white {
+  background-color: var(--color-surface);
+}
+/* Filled buttons keep a deep blue (white text on the light pen colour would be too faint). */
+[data-theme="dark"] .bg-pen {
+  background-color: #3a56c4;
+}
+[data-theme="dark"] .hover\:bg-pen-dark:hover {
+  background-color: #2f47a3;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Keyboard users: the first Tab stop is a link that jumps past the header. Hidden until focused. */
+  .skip-link {
+    position: absolute;
+    left: 0.75rem;
+    top: -4rem;
+    z-index: 50;
+    border-radius: 0.375rem;
+    background-color: var(--color-pen);
+    padding: 0.5rem 1rem;
+    color: #fff;
+    font-size: 0.875rem;
+  }
+  .skip-link:focus {
+    top: 0.75rem;
+  }
+  [data-theme="dark"] .skip-link {
+    background-color: #3a56c4;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-pen);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

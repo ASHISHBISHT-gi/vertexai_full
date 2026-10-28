@@ -1,0 +1,97 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env: { POSTGRES_USER: lms_user, POSTGRES_PASSWORD: lms_password, POSTGRES_DB: lms_db }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lms_user -d lms_db" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://lms_user:lms_password@localhost:5432/lms_db
+      JWT_ACCESS_SECRET: ci-only-secret-ci-only-secret-ci-only
+      RATE_LIMIT_ENABLED: "false"
+      EMAIL_WORKER_ENABLED: "false"
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: backend/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test:unit
+      - run: pnpm migrate
+      - run: pnpm seed
+      - name: Start API and run the end-to-end smoke test
+        run: |
+          pnpm start > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:4000/health && break || sleep 1; done
+          pnpm smoke || { echo "---- server log ----"; tail -n 80 server.log; exit 1; }
+
+  rate-limit:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env: { POSTGRES_USER: lms_user, POSTGRES_PASSWORD: lms_password, POSTGRES_DB: lms_db }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lms_user -d lms_db" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://lms_user:lms_password@localhost:5432/lms_db
+      JWT_ACCESS_SECRET: ci-only-secret-ci-only-secret-ci-only
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: backend/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm migrate
+      - run: |
+          pnpm start > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:4000/health && break || sleep 1; done
+          RATE_LIMIT_CHECK=1 pnpm smoke
+
+  ai-service:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: ai-service } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: ai-service/requirements.txt }
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: frontend/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build   # type-checks, then builds
+
+  docker:
+    needs: [backend, rate-limit, ai-service, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all three images (not pushed)
+        run: |
+          docker build -t lms-backend backend
+          docker build -t lms-ai ai-service
+          docker build -t lms-frontend frontend

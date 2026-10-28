@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vertexon Learning</title>
+    <meta name="color-scheme" content="light dark" />
+    <!-- Runs before the page paints: apply the saved theme and language so there's no white flash in dark mode. -->
+    <script>
+      try {
+        var t = localStorage.getItem("lms.theme");
+        var dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        var l = localStorage.getItem("lms.lang");
+        if (l) document.documentElement.lang = l;
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

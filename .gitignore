@@ -1,0 +1,16 @@
+node_modules/
+dist/
+
+# Secrets: never commit these. Copy the .env.example files instead.
+.env
+.env.*
+!.env.example
+
+# Uploaded videos, submissions, certificates, thumbnails (runtime data, not source code)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+__pycache__/
+.pytest_cache/
+.venv/
+*.log
