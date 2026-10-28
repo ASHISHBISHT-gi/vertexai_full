@@ -138,17 +138,3 @@ cd ../ai-service && source .venv/bin/activate && pytest
 
 In `ai-service/.env`: `LLM_PROVIDER=anthropic` plus `ANTHROPIC_API_KEY=...`, and for embeddings `EMBEDDING_PROVIDER=voyage` (or `openai`) plus `EMBEDDING_API_KEY=...`. Restart the service and run `python -m app.cli index-all --force`.
 In `backend/.env`: set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`.
-
-## Troubleshooting
-
-| Problem | Fix |
-|---|---|
-| `port is already allocated` / `EADDRINUSE` | Another program uses that port. Stop it, or change `PORT` in the `.env` file. |
-| `pnpm: command not found` | Run `corepack enable`, then reopen the terminal. |
-| `Invalid environment configuration` when starting the backend | `backend/.env` is missing or `JWT_ACCESS_SECRET` is shorter than 16 characters. |
-| Backend cannot connect to the database | Run `docker compose ps` and wait for "healthy". Check `DATABASE_URL` matches the compose credentials. |
-| AI tutor says the service isn't reachable | Terminal 2 isn't running, or its `JWT_ACCESS_SECRET` differs from the backend's. |
-| Tutor answers look odd | Normal in demo mode (`fake`): it quotes sentences from the transcript. |
-| `429 Too many requests` while testing | The rate limit is working (10 logins per minute per IP). Wait a minute. |
-| `pnpm install --frozen-lockfile` fails in Docker | Run `pnpm install` once in `backend/` and `frontend/` to refresh the lockfiles. |
-| Want a clean database | `docker compose down -v`, then repeat from step 2. |
